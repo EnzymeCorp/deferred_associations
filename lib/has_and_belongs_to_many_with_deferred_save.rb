@@ -85,6 +85,9 @@ module ActiveRecord
           unless send("unsaved_#{collection_name}").nil?
             send "use_original_collection_reader_behavior_for_#{collection_name}=", true
 
+            if send("unsaved_#{collection_name}") != send("#{collection_name}_without_deferred_save")
+              @had_deferred_save_changes = true
+            end
             # vv This is where the actual save occurs vv
             send "#{collection_name}_without_deferred_save=", send("unsaved_#{collection_name}")
 
@@ -92,7 +95,8 @@ module ActiveRecord
           end
           true
         end
-        after_save :"do_#{collection_name}_save!"
+        after_save :"do_#{collection_name}_save!"#, prepend: true
+        add_record_touch_callback
 
         define_method "reload_with_deferred_save_for_#{collection_name}" do |*method_args|
           # Reload from the *database*, discarding any unsaved changes.
@@ -129,6 +133,20 @@ module ActiveRecord
             end
           end
         end
+      end
+
+      def add_record_touch_callback
+        define_method :deferred_save_touch_callback do
+          if @had_deferred_save_changes && !saved_changes?
+            # The deferred records changed, but nothing else did, so touch the
+            # record. This triggers a version to be created if the record has
+            # paper_trail enabled
+            touch
+            @had_deferred_save_changes = false
+          end
+        end
+
+        after_save :deferred_save_touch_callback
       end
     end
   end

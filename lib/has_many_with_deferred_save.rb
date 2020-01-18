@@ -22,6 +22,8 @@ module ActiveRecord
 
         define_update_method collection_name
         define_reload_method collection_name
+
+        add_record_touch_callback
       end
 
       def define_obj_setter(collection_name)
@@ -87,7 +89,15 @@ module ActiveRecord
             elements = instance_variable_get "@hmwds_temp_#{collection_name}"
             unless elements.nil? # nothing has been done with the association
               # save is done automatically, if original behaviour is restored
+
+
+
               instance_variable_set "@hmwds_#{collection_name}_save_in_progress", true
+
+              if send("#{collection_name}_without_deferred_save") != elements
+                @had_deferred_save_changes = true
+              end
+
               send("#{collection_name}_without_deferred_save=", elements)
               instance_variable_set "@hmwds_#{collection_name}_save_in_progress", false
 
